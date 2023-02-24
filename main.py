@@ -1,6 +1,13 @@
 import numpy
+import scipy
+import math
+
 from dataclasses import dataclass
 import pygame
+from svgpathtools import Path, svg2paths
+
+
+SPEED = 0.001
 
 
 @dataclass
@@ -16,13 +23,44 @@ class Segment:
         self.angle += self.omega * 2 * numpy.pi * dt
 
 
+def lerp(a, b, t):
+    return a + t * (b - a)
+
+
+def bezier(start, end, control, t):
+    return lerp(lerp(start, control, t), lerp(control, end, t), t)
+
+
+def cubic_bezier(start, end, control1, control2, t):
+    return lerp(bezier(start, control1, control2, t), bezier(control1, control2, end, t), t)
+
+
+def path_element_to_equation(element):
+    if isinstance(element, Path.Line):
+        return lambda t: element.start + t * (element.end - element.start)
+    elif isinstance(element, Path.CubicBezier):
+        return lambda t: cubic_bezier(element.start, element.end, element.control1, element.control2, t)
+
+
+def parse_svg(path):
+    paths, _ = svg2paths(path)
+    equations = [path_element_to_equation(element) for element in paths[0]]
+
+
+def init_segments():
+    segments = []
+    for i in range(10):
+        segments.append(Segment(50, 1, 0))
+    return segments
+
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     clock = pygame.time.Clock()
     screen_mid = screen.get_rect().width/2 + screen.get_rect().height/2 * 1j
 
-    segments = [Segment(50, 1, 0), Segment(200, 2, 0), Segment(100, 3, 0)]
+    segments = init_segments()
 
     while True:
         for event in pygame.event.get():
@@ -50,7 +88,7 @@ def main():
             current_pos += segment.get_vector()
 
         for segment in segments:
-            segment.inc_angle(0.001)
+            segment.inc_angle(1 * SPEED)
 
         pygame.display.flip()
         clock.tick(30)
