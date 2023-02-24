@@ -1,4 +1,5 @@
-import numpy
+import numpy as np
+import scipy as sp
 import math
 
 from numbers import Number
@@ -18,7 +19,7 @@ class Segment:
     angle: float
 
     def get_vector(self, t) -> complex:
-        return self.radius * numpy.exp((math.tau * self.omega * t + self.angle)
+        return self.radius * np.exp((math.tau * self.omega * t + self.angle)
                                        * 1j)
 
 
@@ -28,7 +29,7 @@ class NormalizedParametricEquation:
 
     def __call__(self, t) -> Number:
         try:
-            print(self.equations[math.floor(t * len(self.equations))](t * len(self.equations) % 1))
+            # print(self.equations[math.floor(t * len(self.equations))](t * len(self.equations) % 1))
             return self.equations[math.floor(t * len(self.equations))](t * len(self.equations) % 1)
         except IndexError:
             pass
@@ -60,17 +61,20 @@ def parse_svg(path) -> NormalizedParametricEquation:
     return NormalizedParametricEquation(equations)
 
 
-def init_segments(n: int) -> list[Segment]:
+def init_segments(n: int, path: NormalizedParametricEquation) -> list[Segment]:
     segments = []
     for i in range(n):
-        segments.append(Segment(50, (i / n), 0))
+        l = lambda t: path(t) * np.exp(-i * math.tau * 1j * t)
+        new_radius, error = sp.integrate.quad(l, 0, 1)
+        print(error)
+        segments.append(Segment(new_radius/10, i, 0))
     return segments
 
 
 def dot(screen, pos: complex, size=1):
     pygame.draw.circle(
         screen, (255, 0, 0),
-        (numpy.real(pos), numpy.imag(pos)),
+        (np.real(pos), np.imag(pos)),
         size)
 
 
@@ -81,10 +85,10 @@ def main():
     screen_mid = screen.get_rect().width/2 + screen.get_rect().height/2 * 1j
 
     font = pygame.font.Font('freesansbold.ttf', 32)
-
-    segments = init_segments(10)
     all_path = parse_svg(r"C:\Users\User\Downloads\svg (1).svg")
-    ps = [all_path(t) for t in numpy.linspace(0, 1, 1000)]
+
+    segments = init_segments(10, all_path)
+    ps = [all_path(t) for t in np.linspace(0, 1, 1000)]
     t = 0
     while True:
         t = t % 1
@@ -100,22 +104,22 @@ def main():
 
         screen.blit(text, text_rect)
 
-        # current_pos = screen_mid
-        # for segment in segments:
-        #     pygame.draw.circle(
-        #         screen, (127, 127, 127),
-        #         (numpy.real(current_pos), numpy.imag(current_pos)),
-        #         segment.radius, width=1)
-        #     current_pos += segment.get_vector(t)
+        current_pos = screen_mid
+        for segment in segments:
+            pygame.draw.circle(
+                screen, (127, 127, 127),
+                (np.real(current_pos), np.imag(current_pos)),
+                segment.radius, width=1)
+            current_pos += segment.get_vector(t)
 
-        # current_pos = screen_mid
-        # for segment in segments:
-        #     end = current_pos + segment.get_vector(t)
-        #     pygame.draw.line(
-        #         screen, (255, 255, 255),
-        #         (numpy.real(current_pos), numpy.imag(current_pos)),
-        #         (numpy.real(end), numpy.imag(end)))
-        #     current_pos += segment.get_vector(t)
+        current_pos = screen_mid
+        for segment in segments:
+            end = current_pos + segment.get_vector(t)
+            pygame.draw.line(
+                screen, (255, 255, 255),
+                (np.real(current_pos), np.imag(current_pos)),
+                (np.real(end), np.imag(end)))
+            current_pos += segment.get_vector(t)
 
         p = all_path(t)
         dot(screen, p, 5)
