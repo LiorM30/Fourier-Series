@@ -23,6 +23,18 @@ class Segment:
         self.angle += self.omega * 2 * numpy.pi * dt
 
 
+@dataclass
+class NormalizedParametricEquation:
+    equations: list[callable]
+
+    def __call__(self, t):
+        for equation in self.equations:
+            try:
+                return equation(t)
+            except ValueError:
+                continue
+
+
 def lerp(a, b, t):
     return a + t * (b - a)
 
@@ -45,6 +57,7 @@ def path_element_to_equation(element):
 def parse_svg(path):
     paths, _ = svg2paths(path)
     equations = [path_element_to_equation(element) for element in paths[0]]
+    return NormalizedParametricEquation(equations)
 
 
 def init_segments():
