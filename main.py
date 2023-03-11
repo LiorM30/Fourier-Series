@@ -27,7 +27,7 @@ class Segment:
 class FourierSeries:
     segments: list[Segment]
 
-    def __call__(self, t) -> complex:
+    def __call__(self, t) -> complex:  # TODO: change it to a method
         return sum(segment.get_vector(t) for segment in self.segments)
 
 
@@ -61,6 +61,7 @@ def path_element_to_equation(element) -> Number:
     elif isinstance(element, QuadraticBezier):
         return lambda t: bezier(element.start, element.end, element.control, t)
     elif isinstance(element, CubicBezier):
+        print(type(element.start))
         return lambda t: cubic_bezier(element.start, element.end,
                                       element.control1, element.control2, t)
 
@@ -101,7 +102,6 @@ def dot(screen, pos: complex, size=1, color=(255, 0, 0)):
 
 def main():  # TODO: make svg in middle
     # TODO: for the love of god, make this code more readable
-    # TODO make 
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     clock = pygame.time.Clock()
@@ -111,7 +111,7 @@ def main():  # TODO: make svg in middle
     font = pygame.font.Font('freesansbold.ttf', 32)
     all_path = parse_svg(r"forte-2-svgrepo-com.svg")
 
-    segments = init_segments(50, all_path)
+    segments = init_segments(3, all_path)
     series = FourierSeries(segments)
     ps = [all_path(t) for t in np.linspace(0, 1, 1000)]
     t = 0
