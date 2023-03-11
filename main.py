@@ -24,6 +24,14 @@ class Segment:
 
 
 @dataclass
+class FourierSeries:
+    segments: list[Segment]
+
+    def __call__(self, t) -> complex:
+        return sum(segment.get_vector(t) for segment in self.segments)
+
+
+@dataclass
 class NormalizedParametricEquation:
     equations: list[callable]
 
@@ -82,9 +90,9 @@ def init_segments(n: int, path: NormalizedParametricEquation) -> list[Segment]:
     return segments
 
 
-def dot(screen, pos: complex, size=1):
+def dot(screen, pos: complex, size=1, color=(255, 0, 0)):
     pygame.draw.circle(
-        screen, (255, 0, 0),
+        screen, color,
         (np.real(pos), np.imag(pos)),
         size)
 
@@ -99,7 +107,8 @@ def main():  # TODO: make svg in middle
     font = pygame.font.Font('freesansbold.ttf', 32)
     all_path = parse_svg(r"C:\Users\Lior\Downloads\forte-2-svgrepo-com.svg")
 
-    segments = init_segments(10, all_path)
+    segments = init_segments(50, all_path)
+    series = FourierSeries(segments)
     ps = [all_path(t) for t in np.linspace(0, 1, 1000)]
     t = 0
     while True:
@@ -119,7 +128,7 @@ def main():  # TODO: make svg in middle
         current_pos = screen_mid
         for segment in segments:
             pygame.draw.circle(
-                screen, (127, 127, 127),
+                screen, (127//2, 127//2, 127//2),
                 (np.real(current_pos), np.imag(current_pos)),
                 segment.radius, width=1)
             current_pos += segment.get_vector(t)
@@ -134,13 +143,16 @@ def main():  # TODO: make svg in middle
             current_pos += segment.get_vector(t)
 
         p = all_path(t)
-        dot(screen, p, 5)
 
         for p in ps:
             try:
-                dot(screen, p)
+                dot(screen, p, color=(255/4, 0, 0))
             except TypeError:
                 pass
+
+        for g in np.linspace(t-0.1, t, 100):
+            c = int(255 * (g - t + 0.1) / 0.1)
+            dot(screen, series(g), 1, (c, c, 0))
 
         pygame.display.flip()
         clock.tick(30)
