@@ -6,7 +6,7 @@ from numbers import Number
 
 from dataclasses import dataclass
 import pygame
-from svgpathtools import Path, svg2paths, Line, CubicBezier
+from svgpathtools import svg2paths, Line, CubicBezier, QuadraticBezier
 
 
 SPEED = 0.001
@@ -37,7 +37,6 @@ class NormalizedParametricEquation:
 
     def __call__(self, t) -> Number:
         try:
-            # print(self.equations[math.floor(t * len(self.equations))](t * len(self.equations) % 1))
             return self.equations[math.floor(t * len(self.equations))](t * len(self.equations) % 1)
         except IndexError:
             pass
@@ -52,12 +51,15 @@ def bezier(start, end, control, t) -> Number:
 
 
 def cubic_bezier(start, end, control1, control2, t) -> Number:
-    return lerp(bezier(start, control2, control1, t), bezier(control1, end, control2, t), t)
+    return lerp(bezier(start, control2, control1, t),
+                bezier(control1, end, control2, t), t)
 
 
 def path_element_to_equation(element) -> Number:
     if isinstance(element, Line):
         return lambda t: element.start + t * (element.end - element.start)
+    elif isinstance(element, QuadraticBezier):
+        return lambda t: bezier(element.start, element.end, element.control, t)
     elif isinstance(element, CubicBezier):
         return lambda t: cubic_bezier(element.start, element.end,
                                       element.control1, element.control2, t)
@@ -99,6 +101,7 @@ def dot(screen, pos: complex, size=1, color=(255, 0, 0)):
 
 def main():  # TODO: make svg in middle
     # TODO: for the love of god, make this code more readable
+    # TODO make 
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     clock = pygame.time.Clock()
@@ -106,7 +109,7 @@ def main():  # TODO: make svg in middle
     screen_mid = 0 + 0j
 
     font = pygame.font.Font('freesansbold.ttf', 32)
-    all_path = parse_svg(r"C:\Users\Lior\Downloads\forte-2-svgrepo-com.svg")
+    all_path = parse_svg(r"forte-2-svgrepo-com.svg")
 
     segments = init_segments(50, all_path)
     series = FourierSeries(segments)
