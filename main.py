@@ -98,6 +98,7 @@ def dot(screen, pos: complex, size=1, color=(255, 0, 0)):
 
 
 def main():  # TODO: make svg in middle
+    # TODO: for the love of god, make this code more readable
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     clock = pygame.time.Clock()
