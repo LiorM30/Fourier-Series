@@ -20,7 +20,7 @@ class Segment:
 
     def get_vector(self, t) -> complex:
         return self.radius * np.exp((math.tau * self.omega * t + self.angle)
-                                       * 1j)
+                                    * 1j)
 
 
 @dataclass
@@ -63,11 +63,22 @@ def parse_svg(path) -> NormalizedParametricEquation:
 
 def init_segments(n: int, path: NormalizedParametricEquation) -> list[Segment]:
     segments = []
-    for i in range(n):
-        l = lambda t: path(t) * np.exp(-i * math.tau * 1j * t)
-        new_radius, error = sp.integrate.quad(l, 0, 1)
-        print(error)
-        segments.append(Segment(new_radius/10, i, 0))
+
+    def l(t, i):
+        return path(t) * np.exp(-i * math.tau * 1j * t)
+
+    new_radius = sp.integrate.quad(lambda t: l(t, 0).real, 0, 1)[0] +\
+        sp.integrate.quad(lambda t: l(t, 0).imag, 0, 1)[0] * 1j
+    segments.append(Segment(abs(new_radius), 0, np.angle(new_radius)))
+
+    for i in range(1, n):
+        new_radius = sp.integrate.quad(lambda t: l(t, i).real, 0, 1)[0] +\
+            sp.integrate.quad(lambda t: l(t, i).imag, 0, 1)[0] * 1j
+        segments.append(Segment(abs(new_radius), i, np.angle(new_radius)))
+
+        new_radius = sp.integrate.quad(lambda t: l(t, -i).real, 0, 1)[0] +\
+            sp.integrate.quad(lambda t: l(t, -i).imag, 0, 1)[0] * 1j
+        segments.append(Segment(abs(new_radius), -i, np.angle(new_radius)))
     return segments
 
 
@@ -78,14 +89,15 @@ def dot(screen, pos: complex, size=1):
         size)
 
 
-def main():
+def main():  # TODO: make svg in middle
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     clock = pygame.time.Clock()
-    screen_mid = screen.get_rect().width/2 + screen.get_rect().height/2 * 1j
+    # screen_mid = screen.get_rect().width/2 + screen.get_rect().height/2 * 1j
+    screen_mid = 0 + 0j
 
     font = pygame.font.Font('freesansbold.ttf', 32)
-    all_path = parse_svg(r"C:\Users\User\Downloads\svg (1).svg")
+    all_path = parse_svg(r"C:\Users\Lior\Downloads\forte-2-svgrepo-com.svg")
 
     segments = init_segments(10, all_path)
     ps = [all_path(t) for t in np.linspace(0, 1, 1000)]
