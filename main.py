@@ -31,15 +31,26 @@ class FourierSeries:
         return sum(segment.get_vector(t) for segment in self.segments)
 
 
-@dataclass
 class NormalizedParametricEquation:
-    equations: list[callable]
+    def __init__(self, equations: list[callable], middle: complex) -> None:
+        self.equations = equations
+        self.middle = middle
 
-    def __call__(self, t) -> Number:
+        self.offset = self.middle - self._center()
+
+    def _center(self) -> complex:
+        return sp.integrate.quad(lambda t: self._start_at(t).real, 0, 1)[0] +\
+            sp.integrate.quad(lambda t: self._start_at(t).imag, 0, 1)[0] * 1j
+
+    def _start_at(self, t):
+        i = math.floor(t * len(self.equations))
         try:
-            return self.equations[math.floor(t * len(self.equations))](t * len(self.equations) % 1)
+            return self.equations[i](t * len(self.equations) % 1)
         except IndexError:
-            pass
+            return 0 + 0j
+
+    def at(self, t) -> Number:
+        return self._start_at(t) + self.offset
 
 
 def lerp(a, b, t) -> Number:
@@ -55,40 +66,39 @@ def cubic_bezier(start, end, control1, control2, t) -> Number:
                 bezier(control1, end, control2, t), t)
 
 
-def path_element_to_equation(element) -> Number:
+def path_element_to_equation(element) -> callable:
     if isinstance(element, Line):
         return lambda t: element.start + t * (element.end - element.start)
     elif isinstance(element, QuadraticBezier):
         return lambda t: bezier(element.start, element.end, element.control, t)
     elif isinstance(element, CubicBezier):
-        print(type(element.start))
         return lambda t: cubic_bezier(element.start, element.end,
                                       element.control1, element.control2, t)
 
 
-def parse_svg(path) -> NormalizedParametricEquation:
+def parse_svg(path, wanted_middle) -> NormalizedParametricEquation:
     paths, _ = svg2paths(path)
     equations = [path_element_to_equation(element) for element in paths[0]]
-    return NormalizedParametricEquation(equations)
+    return NormalizedParametricEquation(equations, wanted_middle)
 
 
 def init_segments(n: int, path: NormalizedParametricEquation) -> list[Segment]:
     segments = []
 
     def l(t, i):
-        return path(t) * np.exp(-i * math.tau * 1j * t)
+        return (path.at(t) - path.middle) * np.exp(-i * math.tau * 1j * t)
 
     new_radius = sp.integrate.quad(lambda t: l(t, 0).real, 0, 1)[0] +\
-        sp.integrate.quad(lambda t: l(t, 0).imag, 0, 1)[0] * 1j
+                 sp.integrate.quad(lambda t: l(t, 0).imag, 0, 1)[0] * 1j
     segments.append(Segment(abs(new_radius), 0, np.angle(new_radius)))
 
     for i in range(1, n):
         new_radius = sp.integrate.quad(lambda t: l(t, i).real, 0, 1)[0] +\
-            sp.integrate.quad(lambda t: l(t, i).imag, 0, 1)[0] * 1j
+                     sp.integrate.quad(lambda t: l(t, i).imag, 0, 1)[0] * 1j
         segments.append(Segment(abs(new_radius), i, np.angle(new_radius)))
 
         new_radius = sp.integrate.quad(lambda t: l(t, -i).real, 0, 1)[0] +\
-            sp.integrate.quad(lambda t: l(t, -i).imag, 0, 1)[0] * 1j
+                     sp.integrate.quad(lambda t: l(t, -i).imag, 0, 1)[0] * 1j
         segments.append(Segment(abs(new_radius), -i, np.angle(new_radius)))
     return segments
 
@@ -97,7 +107,8 @@ def dot(screen, pos: complex, size=1, color=(255, 0, 0)):
     pygame.draw.circle(
         screen, color,
         (np.real(pos), np.imag(pos)),
-        size)
+        size
+    )
 
 
 def main():  # TODO: make svg in middle
@@ -105,19 +116,25 @@ def main():  # TODO: make svg in middle
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     clock = pygame.time.Clock()
-    # screen_mid = screen.get_rect().width/2 + screen.get_rect().height/2 * 1j
-    screen_mid = 0 + 0j
 
     font = pygame.font.Font('freesansbold.ttf', 32)
-    all_path = parse_svg(r"forte-2-svgrepo-com.svg")
 
-    segments = init_segments(3, all_path)
+    # screen_mid = 0 + 0j
+    # screen_mid = all_path.center()
+    screen_mid = 400 + 300j
+
+    all_path = parse_svg(r"forte-2-svgrepo-com.svg", screen_mid)
+
+    path_points = [[all_path.at(p).real, all_path.at(p).imag]
+                   for p in np.linspace(0, 0.999, 100)]
+
+    segments = init_segments(50, all_path)
     series = FourierSeries(segments)
-    ps = [all_path(t) for t in np.linspace(0, 1, 1000)]
+
     t = 0
     while True:
         t = t % 1
-        text = font.render(str(t - t % SPEED), True, (255, 255, 255))
+        text = font.render(str(t - t % SPEED)[:4], True, (255, 255, 255))
         text_rect = text.get_rect()
         text_rect.center = (100, 50)
         for event in pygame.event.get():
@@ -146,17 +163,11 @@ def main():  # TODO: make svg in middle
                 (np.real(end), np.imag(end)))
             current_pos += segment.get_vector(t)
 
-        p = all_path(t)
+        pygame.draw.aalines(screen, (255/2, 0, 0), True, path_points)
 
-        for p in ps:
-            try:
-                dot(screen, p, color=(255/4, 0, 0))
-            except TypeError:
-                pass
-
-        for g in np.linspace(t-0.1, t, 100):
+        for g in np.linspace(t-0.1, t, 200):
             c = int(255 * (g - t + 0.1) / 0.1)
-            dot(screen, series(g), 1, (c, c, 0))
+            dot(screen, series(g) + screen_mid, 1, (c, c, 0))
 
         pygame.display.flip()
         clock.tick(30)
