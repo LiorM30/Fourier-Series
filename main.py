@@ -35,22 +35,33 @@ class NormalizedParametricEquation:
     def __init__(self, equations: list[callable], middle: complex) -> None:
         self.equations = equations
         self.middle = middle
+        self.factor = 1
+
+        self.flipped_horizontally = False
 
         self.offset = self.middle - self._center()
 
     def _center(self) -> complex:
-        return sp.integrate.quad(lambda t: self._start_at(t).real, 0, 1)[0] +\
-            sp.integrate.quad(lambda t: self._start_at(t).imag, 0, 1)[0] * 1j
+        return complex_integrate(lambda t: self._start_at(t), 0, 1)
 
-    def _start_at(self, t):
+    def _start_at(self, t) -> complex:
         i = math.floor(t * len(self.equations))
         try:
-            return self.equations[i](t * len(self.equations) % 1)
+            return self.equations[i](t * len(self.equations) % 1) * self.factor
         except IndexError:
             return 0 + 0j
 
     def at(self, t) -> Number:
+        if self.flipped_horizontally:
+            return (self._start_at(t) + self.offset).real + (2 * self.middle - (self._start_at(t) + self.offset)).imag * 1j
         return self._start_at(t) + self.offset
+
+    def transform(self, factor: float):
+        self.factor = factor
+        self.offset = self.middle - self._center()
+
+    def horizontal_flip(self):
+        self.flipped_horizontally = not self.flipped_horizontally
 
 
 def lerp(a, b, t) -> Number:
@@ -64,6 +75,11 @@ def bezier(start, end, control, t) -> Number:
 def cubic_bezier(start, end, control1, control2, t) -> Number:
     return lerp(bezier(start, control2, control1, t),
                 bezier(control1, end, control2, t), t)
+
+
+def complex_integrate(func: callable, start: float, end: float) -> complex:
+    return sp.integrate.quad(lambda t: func(t).real, start, end)[0] +\
+        sp.integrate.quad(lambda t: func(t).imag, start, end)[0] * 1j
 
 
 def path_element_to_equation(element) -> callable:
@@ -88,17 +104,14 @@ def init_segments(n: int, path: NormalizedParametricEquation) -> list[Segment]:
     def l(t, i):
         return (path.at(t) - path.middle) * np.exp(-i * math.tau * 1j * t)
 
-    new_radius = sp.integrate.quad(lambda t: l(t, 0).real, 0, 1)[0] +\
-                 sp.integrate.quad(lambda t: l(t, 0).imag, 0, 1)[0] * 1j
+    new_radius = complex_integrate(lambda t: l(t, 0), 0, 1)
     segments.append(Segment(abs(new_radius), 0, np.angle(new_radius)))
 
     for i in range(1, n):
-        new_radius = sp.integrate.quad(lambda t: l(t, i).real, 0, 1)[0] +\
-                     sp.integrate.quad(lambda t: l(t, i).imag, 0, 1)[0] * 1j
+        new_radius = complex_integrate(lambda t: l(t, i), 0, 1)
         segments.append(Segment(abs(new_radius), i, np.angle(new_radius)))
 
-        new_radius = sp.integrate.quad(lambda t: l(t, -i).real, 0, 1)[0] +\
-                     sp.integrate.quad(lambda t: l(t, -i).imag, 0, 1)[0] * 1j
+        new_radius = complex_integrate(lambda t: l(t, -i), 0, 1)
         segments.append(Segment(abs(new_radius), -i, np.angle(new_radius)))
     return segments
 
@@ -123,10 +136,14 @@ def main():  # TODO: make svg in middle
     # screen_mid = all_path.center()
     screen_mid = 400 + 300j
 
-    all_path = parse_svg(r"forte-2-svgrepo-com.svg", screen_mid)
+    # all_path = parse_svg(r"forte-2-svgrepo-com.svg", screen_mid)
+    # all_path = parse_svg(r"vectorized GA.svg", screen_mid)
+    all_path = parse_svg(r"C:\Users\Lior\Downloads\svg (1).svg", screen_mid)
+    all_path.transform(0.05)
+    all_path.horizontal_flip()
 
     path_points = [[all_path.at(p).real, all_path.at(p).imag]
-                   for p in np.linspace(0, 0.999, 100)]
+                   for p in np.linspace(0, 0.999, 500)]
 
     segments = init_segments(50, all_path)
     series = FourierSeries(segments)
@@ -142,14 +159,14 @@ def main():  # TODO: make svg in middle
                 pygame.quit()
                 return
 
-        screen.fill((0, 0, 0))
+        screen.fill((255, 255, 255))
 
         screen.blit(text, text_rect)
 
         current_pos = screen_mid
         for segment in segments:
             pygame.draw.circle(
-                screen, (127//2, 127//2, 127//2),
+                screen, (162, 162, 255),
                 (np.real(current_pos), np.imag(current_pos)),
                 segment.radius, width=1)
             current_pos += segment.get_vector(t)
@@ -158,16 +175,19 @@ def main():  # TODO: make svg in middle
         for segment in segments:
             end = current_pos + segment.get_vector(t)
             pygame.draw.line(
-                screen, (255, 255, 255),
+                screen, (162/2, 162/2, 255),
                 (np.real(current_pos), np.imag(current_pos)),
                 (np.real(end), np.imag(end)))
             current_pos += segment.get_vector(t)
 
         pygame.draw.aalines(screen, (255/2, 0, 0), True, path_points)
 
-        for g in np.linspace(t-0.1, t, 200):
-            c = int(255 * (g - t + 0.1) / 0.1)
-            dot(screen, series(g) + screen_mid, 1, (c, c, 0))
+        for g in np.linspace(t-0.15, t, 400):
+            c = int(255 * (g - t + 0.15) / 0.15)
+            dot(screen, series(g) + screen_mid, 2, (0, 0, c))
+        # trace_points = [[series(p).real + screen_mid.real, series(p).imag + screen_mid.imag]
+        #                 for p in np.linspace(t-0.1, t, 400)]
+        # pygame.draw.aalines(screen, (255/2, 0, 0), False, trace_points)
 
         pygame.display.flip()
         clock.tick(30)
