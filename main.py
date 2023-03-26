@@ -9,7 +9,7 @@ import pygame
 from svgpathtools import svg2paths, Line, CubicBezier, QuadraticBezier
 
 
-SPEED = 0.001
+SPEED = 0.01
 
 
 @dataclass
@@ -137,8 +137,8 @@ def main():  # TODO: make svg in middle
     screen_mid = 400 + 300j
 
     # all_path = parse_svg(r"forte-2-svgrepo-com.svg", screen_mid)
-    # all_path = parse_svg(r"vectorized GA.svg", screen_mid)
-    all_path = parse_svg(r"C:\Users\Lior\Downloads\svg (1).svg", screen_mid)
+    all_path = parse_svg(r"vectorized GA.svg", screen_mid)
+    # all_path = parse_svg(r"C:\Users\Lior\Downloads\svg (1).svg", screen_mid)
     all_path.transform(0.05)
     all_path.horizontal_flip()
 
@@ -184,7 +184,7 @@ def main():  # TODO: make svg in middle
 
         for g in np.linspace(t-0.15, t, 400):
             c = int(255 * (g - t + 0.15) / 0.15)
-            dot(screen, series(g) + screen_mid, 2, (0, 0, c))
+            dot(screen, all_path.at(g), 2, (0, 0, c))
         # trace_points = [[series(p).real + screen_mid.real, series(p).imag + screen_mid.imag]
         #                 for p in np.linspace(t-0.1, t, 400)]
         # pygame.draw.aalines(screen, (255/2, 0, 0), False, trace_points)
